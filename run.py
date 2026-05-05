@@ -23,6 +23,7 @@ def main(args):
     epochs = args.epochs
     batch_size = args.batch_size if args.batch_size is not None else BATCH_SIZE
     no_workers = args.no_workers if args.no_workers is not None else NO_WORKERS
+    resume_from = args.checkpoint_path
 
     setup_logging(output_dir)
     
@@ -63,7 +64,8 @@ def main(args):
         train_num,
         val_num,
         output_dir,
-        epochs
+        epochs,
+        resume_from
     )
 
 
@@ -75,6 +77,8 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=550)
     parser.add_argument("--batch_size", type=int, required=False)  # default in config
     parser.add_argument("--no_workers", type=int, required=False)  # default in config
+    parser.add_argument("--checkpoint_path", type=str, default=None)
+
 
     args = parser.parse_args()
 
