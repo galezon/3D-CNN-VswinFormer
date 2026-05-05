@@ -9,13 +9,15 @@
 set -euo pipefail
 
 BASE_OUTPUT_DIR="${1:-./results}"
-EPOCHS="$2"
+EPOCHS="${2:-550}"
+CHECKPOINT_PATH="${3:-}"
+
 RUN_SCRIPT=/home/VIB.LOCAL/lunkyadikurniawan.sucipto/projects/3D-CNN-VswinFormer/run.py
+REPO_DIR="$(dirname "$RUN_SCRIPT")"
 
 OUTPUT_DIR="$BASE_OUTPUT_DIR/job_${SLURM_JOB_ID}"
 mkdir -p "$OUTPUT_DIR"
 
-# Redirect all output to a log file in output directory
 exec > >(tee "$OUTPUT_DIR/slurm.log")
 exec 2>&1
 
@@ -26,8 +28,33 @@ source /home/VIB.LOCAL/lunkyadikurniawan.sucipto/miniconda3/etc/profile.d/conda.
 conda activate mri_3D_classification_env
 
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
-echo $LD_LIBRARY_PATH | tr ':' '\n' | head -20
 
-python $RUN_SCRIPT \
-    --output_dir "$OUTPUT_DIR" \
-    --epochs "$EPOCHS" \
+if [ -z "$CHECKPOINT_PATH" ]; then
+    COMMAND="python \"$RUN_SCRIPT\" --output_dir \"$OUTPUT_DIR\" --epochs \"$EPOCHS\""
+else
+    COMMAND="python \"$RUN_SCRIPT\" --output_dir \"$OUTPUT_DIR\" --epochs \"$EPOCHS\" --checkpoint_path \"$CHECKPOINT_PATH\""
+fi
+
+cat > "$OUTPUT_DIR/run_setup.txt" <<EOF
+date: $(date)
+hostname: $(hostname)
+
+slurm_job_id: ${SLURM_JOB_ID:-}
+slurm_job_name: ${SLURM_JOB_NAME:-}
+slurm_partition: ${SLURM_JOB_PARTITION:-}
+slurm_cpus_per_task: ${SLURM_CPUS_PER_TASK:-}
+slurm_mem_per_node: ${SLURM_MEM_PER_NODE:-}
+cuda_visible_devices: ${CUDA_VISIBLE_DEVICES:-}
+
+base_output_dir: $BASE_OUTPUT_DIR
+output_dir: $OUTPUT_DIR
+epochs: $EPOCHS
+run_script: $RUN_SCRIPT
+checkpoint_path: ${CHECKPOINT_PATH:-None}
+command: $COMMAND
+
+git_branch: $(git -C "$REPO_DIR" branch --show-current)
+git_commit: $(git -C "$REPO_DIR" rev-parse HEAD)
+EOF
+
+eval "$COMMAND"
