@@ -1,0 +1,136 @@
+import logging
+from torchvision import transforms
+import torch
+from monai.data import DataLoader, ImageDataset
+from monai import transforms
+from config import RANDOM_STATE
+from register import paths_datacore
+from pathlib import Path
+import pandas as pd
+import itertools
+from sklearn.model_selection import train_test_split
+
+logger = logging.getLogger(__name__)
+
+def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25):
+    """
+    Just obtain the paths of the NIFTIs, separate them by AD vs CN, and split them into train and val.
+    Maybe enforce separation per subject as well.
+    """
+
+    base_metadata_path = Path(paths_datacore['base_metadata_path'])
+    adni_metadata = pd.read_csv(base_metadata_path / 'raw' / 'ADNI_full_metadata.csv')
+
+    # obtain NIFTI paths
+    adni3_dir = Path(paths_datacore['adni3_nifti_dir'])
+    adni_1_2_go_dir = Path(paths_datacore['adni_1_2_go_nifti_dir'])
+
+    adni3_paths = adni3_dir.glob("*_restore.nii.gz")
+    adni_1_2_go_paths = adni_1_2_go_dir.glob("*_restore.nii.gz")
+
+    # Create efficient lookup dictionary from metadata
+    id_to_group = pd.Series(
+        adni_metadata['Group'].values, 
+        index=adni_metadata['Image Data ID']
+    ).to_dict()
+
+    # Sort AD vs CN
+    AD_paths, CN_paths = [], []
+    cn_groups = {'CN'}
+    ad_groups = {'SMC', 'AD', 'LMCI', 'MCI', 'EMCI'}
+
+    for path in itertools.chain(adni3_paths, adni_1_2_go_paths):
+        img_id = path.stem.split("_")[0]
+        group = id_to_group.get(img_id)
+        
+        if group in cn_groups:
+            CN_paths.append(path)
+        elif group in ad_groups:
+            AD_paths.append(path)
+        
+    # Combine paths with labels and split
+    all_paths = CN_paths + AD_paths
+    all_labels = [1] * len(CN_paths) + [0] * len(AD_paths)  # 0=AD, 1=CN
+    
+    train_images_path, val_images_path, train_images_label, val_images_label = train_test_split(
+        all_paths, all_labels, test_size=val_rate, random_state=RANDOM_STATE, stratify=all_labels
+    )
+
+    return train_images_path, train_images_label, val_images_path, val_images_label
+
+data_transform = {
+    "train": transforms.Compose([transforms.EnsureChannelFirst(),                            
+                                 transforms.CropForeground(k_divisible=1),
+                                 transforms.CenterSpatialCrop(roi_size=(112,121,64)), 
+                                 transforms.RandSpatialCrop(roi_size=(80,90,44), max_roi_size=(-1,-1,-1), random_size=True), 
+                                 transforms.Resize(spatial_size=(112,112,64)),  # resize
+                                 transforms.NormalizeIntensity(),
+                                 transforms.ScaleIntensity(),
+                                 
+                                 transforms.RandFlip(prob=0.5,spatial_axis=0),
+                                 transforms.RandFlip(prob=0.5,spatial_axis=1),
+                                 transforms.RandFlip(prob=0.5,spatial_axis=2),
+                                  transforms.RandRotate90(prob=0.5, spatial_axes=(0, 1)),
+#                                  transforms.RandRotate90(prob=0.5, spatial_axes=(1, 2)),
+                                 transforms.ToTensor()  
+                                ]),
+    "val": transforms.Compose([transforms.EnsureChannelFirst(), 
+                               
+                               transforms.CropForeground(k_divisible=1),
+                               transforms.CenterSpatialCrop(roi_size=(112,121,64)),
+                               #transforms.RandSpatialCrop(roi_size=(112,112,64), max_roi_size=(-1,-1,-1)), 
+                               #transforms.CenterSpatialCrop(roi_size=(112,112,64)),
+                               transforms.Resize(spatial_size=(112,112,64)),
+                               transforms.NormalizeIntensity(),
+                               transforms.ScaleIntensity(),
+                               #transforms.Resize(spatial_size=(112,112,64)),  # resize
+                               transforms.ToTensor()
+                              ]),
+    "test": transforms.Compose([transforms.EnsureChannelFirst(),  
+                                transforms.RepeatChannel(repeats=3),  
+                               transforms.CropForeground(k_divisible=1),
+                               transforms.Resize(spatial_size=(96,96,96)),  # resize
+                               transforms.ToTensor(),
+                                #transforms.NormalizeIntensity()
+                               ])
+}
+
+def get_loaders(batch_size, no_workers):
+    train_images_path, train_images_label, val_images_path, val_images_label = read_split_data()
+
+    # Instantiate training dataset
+    train_dataset = ImageDataset(image_files=train_images_path,
+                            labels=train_images_label,
+                            transform=data_transform["train"])
+
+    # Instantiate validation dataset
+    val_dataset = ImageDataset(image_files=val_images_path,
+                            labels=val_images_label,
+                            transform=data_transform["val"])
+
+    # # Instantiate test dataset
+    # test_dataset = ImageDataset(image_files=test_images_path,
+    #                         labels=test_images_label,
+    #                         transform=data_transform["test"])
+
+
+    train_loader = DataLoader(train_dataset,
+                            batch_size=batch_size,
+                            shuffle=True,
+                            pin_memory=True,
+                            num_workers=no_workers)
+
+    val_loader = DataLoader(val_dataset,
+                            batch_size=batch_size,
+                            shuffle=False,
+                            pin_memory=True,
+                            num_workers=no_workers)
+    # test_loader = DataLoader(test_dataset,
+    #                          batch_size=batch_size,
+    #                          shuffle=False,
+    #                          pin_memory=True,
+    #                          num_workers=no_workers)
+
+    train_num = len(train_dataset)
+    val_num = len(val_dataset)
+    return train_loader, val_loader, train_num, val_num
