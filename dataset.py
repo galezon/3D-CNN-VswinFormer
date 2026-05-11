@@ -4,7 +4,7 @@ import torch
 from monai.data import DataLoader, ImageDataset
 from monai import transforms
 from config import RANDOM_STATE
-from register import paths_datacore
+from register import paths_datacore, train_ready_registered_datasets
 from pathlib import Path
 import pandas as pd
 import itertools
@@ -12,21 +12,19 @@ from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
-def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25):
+def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25, dataset='paper_default'):
     """
     Just obtain the paths of the NIFTIs, separate them by AD vs CN, and split them into train and val.
-    Maybe enforce separation per subject as well.
+    # TODO: ENFORCE SEPARATION PER SUBJECT!
     """
 
     base_metadata_path = Path(paths_datacore['base_metadata_path'])
     adni_metadata = pd.read_csv(base_metadata_path / 'raw' / 'ADNI_full_metadata.csv')
 
+    # TODO: modify to accomodate counterfactuals
     # obtain NIFTI paths
-    adni3_dir = Path(paths_datacore['adni3_nifti_dir'])
-    adni_1_2_go_dir = Path(paths_datacore['adni_1_2_go_nifti_dir'])
+    paths = get_paths(dataset=dataset)  # should return an intertools.chain object
 
-    adni3_paths = adni3_dir.glob("*_restore.nii.gz")
-    adni_1_2_go_paths = adni_1_2_go_dir.glob("*_restore.nii.gz")
 
     # Create efficient lookup dictionary from metadata
     id_to_group = pd.Series(
@@ -39,8 +37,9 @@ def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25):
     cn_groups = {'CN'}
     ad_groups = {'SMC', 'AD', 'LMCI', 'MCI', 'EMCI'}
 
-    for path in itertools.chain(adni3_paths, adni_1_2_go_paths):
-        img_id = path.stem.split("_")[0]
+    # TODO: modify to accomodate counterfactuals
+    for path in paths:
+        img_id = get_img_id(path, dataset) 
         group = id_to_group.get(img_id)
         
         if group in cn_groups:
@@ -57,6 +56,35 @@ def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25):
     )
 
     return train_images_path, train_images_label, val_images_path, val_images_label
+
+def get_paths(dataset):
+    if dataset == 'paper_default':
+        adni3_dir = Path(paths_datacore['adni3_nifti_dir'])
+        adni_1_2_go_dir = Path(paths_datacore['adni_1_2_go_nifti_dir'])
+
+        adni3_paths = adni3_dir.glob("*_restore.nii.gz")
+        adni_1_2_go_paths = adni_1_2_go_dir.glob("*_restore.nii.gz")
+        
+        return itertools.chain(adni3_paths, adni_1_2_go_paths)
+    elif dataset in ['counterfactual_target_age_30', 'counterfactual_target_age_40', 'counterfactual_target_age_50']:
+        adni3_dir = Path(paths_datacore['ADNI3_ctf_3d']) / dataset.removeprefix("counterfactual_")  # Path() / target_age_40
+        adni_1_2_go_dir = Path(paths_datacore['ADNI_1_2_GO_ctf_3d']) / dataset.removeprefix("counterfactual_")  # Path() / target_age_40
+
+        adni3_paths = adni3_dir.glob("*.nii.gz")
+        adni_1_2_go_paths = adni_1_2_go_dir.glob("*.nii.gz")
+        
+        return itertools.chain(adni3_paths, adni_1_2_go_paths)       
+    else:
+        raise NotImplementedError
+
+def get_img_id(path, dataset):
+    if dataset == 'paper_default':
+        return path.stem.split("_")[0]
+    elif dataset in ['counterfactual_target_age_30', 'counterfactual_target_age_40', 'counterfactual_target_age_50']:
+        return path.name.replace('.nii.gz', '')
+    else:
+        raise NotImplementedError
+
 
 data_transform = {
     "train": transforms.Compose([transforms.EnsureChannelFirst(),                            
@@ -95,8 +123,9 @@ data_transform = {
                                ])
 }
 
-def get_loaders(batch_size, no_workers):
-    train_images_path, train_images_label, val_images_path, val_images_label = read_split_data()
+def get_loaders(batch_size, no_workers, dataset='paper_default'):
+    assert dataset in train_ready_registered_datasets, f"Dataset must be one of {train_ready_registered_datasets}"
+    train_images_path, train_images_label, val_images_path, val_images_label = read_split_data(dataset=dataset)
 
     # Instantiate training dataset
     train_dataset = ImageDataset(image_files=train_images_path,

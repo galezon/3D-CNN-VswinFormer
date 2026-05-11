@@ -6,6 +6,7 @@ from model import swin_tiny_patch4_window7_224 as create_model
 from train import train
 from logging_config import setup_logging
 from config import BATCH_SIZE, NO_WORKERS
+from register import train_ready_registered_datasets
 
 from config import (
     PRETRAIN_WEIGHTS_PATH,
@@ -21,6 +22,7 @@ def main(args):
 
     output_dir = args.output_dir
     epochs = args.epochs
+    dataset = args.dataset
     batch_size = args.batch_size if args.batch_size is not None else BATCH_SIZE
     no_workers = args.no_workers if args.no_workers is not None else NO_WORKERS
     resume_from = args.checkpoint_path
@@ -31,7 +33,8 @@ def main(args):
     logger.info(f"Using {device} device")
     
     logger.info(f"Using {NO_WORKERS} dataloader workers")
-    train_loader, val_loader, train_num, val_num = get_loaders(batch_size, no_workers)  # TODO: add optional arguments
+    train_loader, val_loader, train_num, val_num = get_loaders(batch_size, no_workers, dataset)  # TODO: add optional arguments
+
     logger.info(f"Using {train_num} images for training, {val_num} images for validation")    
 
     # TODO: move loading of the model to model.py
@@ -75,6 +78,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--output_dir", type=str, required=True)  # example
     parser.add_argument("--epochs", type=int, default=550)
+    parser.add_argument("--dataset", type=str, default='paper_default', choices=train_ready_registered_datasets)
     parser.add_argument("--batch_size", type=int, required=False)  # default in config
     parser.add_argument("--no_workers", type=int, required=False)  # default in config
     parser.add_argument("--checkpoint_path", type=str, default=None)
