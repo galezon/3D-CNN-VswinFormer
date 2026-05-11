@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=train_ADvsCN_classifier
+#SBATCH --job-name=train_ADvsCN_classifier_ctf_target_age_30
 #SBATCH --partition=gpu_h100_64C_128T_4TB_co_pi
 #SBATCH --gres=gpu:1
 #SBATCH --mem=128G
@@ -11,6 +11,7 @@ set -euo pipefail
 BASE_OUTPUT_DIR="${1:-./results}"
 EPOCHS="${2:-550}"
 CHECKPOINT_PATH="${3:-}"
+DATASET="${4:-paper_default}"
 
 RUN_SCRIPT=/home/VIB.LOCAL/lunkyadikurniawan.sucipto/projects/3D-CNN-VswinFormer/run.py
 REPO_DIR="$(dirname "$RUN_SCRIPT")"
@@ -29,10 +30,15 @@ conda activate mri_3D_classification_env
 
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
 
-if [ -z "$CHECKPOINT_PATH" ]; then
-    COMMAND="python \"$RUN_SCRIPT\" --output_dir \"$OUTPUT_DIR\" --epochs \"$EPOCHS\""
-else
-    COMMAND="python \"$RUN_SCRIPT\" --output_dir \"$OUTPUT_DIR\" --epochs \"$EPOCHS\" --checkpoint_path \"$CHECKPOINT_PATH\""
+COMMAND=(
+    python "$RUN_SCRIPT"
+    --output_dir "$OUTPUT_DIR"
+    --epochs "$EPOCHS"
+    --dataset "$DATASET"
+)
+
+if [ -n "$CHECKPOINT_PATH" ]; then
+    COMMAND+=(--checkpoint_path "$CHECKPOINT_PATH")
 fi
 
 cat > "$OUTPUT_DIR/run_setup.txt" <<EOF
