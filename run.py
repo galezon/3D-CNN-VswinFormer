@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--output_dir", type=str, required=True)  # example
     parser.add_argument("--epochs", type=int, default=550)
-    parser.add_argument("--dataset", type=str, default='paper_default', choices=train_ready_registered_datasets)
+    parser.add_argument("--dataset", type=str, required=True, choices=train_ready_registered_datasets)
     parser.add_argument("--batch_size", type=int, required=False)  # default in config
     parser.add_argument("--no_workers", type=int, required=False)  # default in config
     parser.add_argument("--checkpoint_path", type=str, default=None)

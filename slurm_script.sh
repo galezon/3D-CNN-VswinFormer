@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=train_ADvsCN_classifier_ctf_target_age_30
+#SBATCH --job-name=train_ADvsCN_classifier_ctf_target_age_50
 #SBATCH --partition=gpu_h100_64C_128T_4TB_co_pi
 #SBATCH --gres=gpu:1
 #SBATCH --mem=128G
@@ -10,8 +10,8 @@ set -euo pipefail
 
 BASE_OUTPUT_DIR="${1:-./results}"
 EPOCHS="${2:-550}"
-CHECKPOINT_PATH="${3:-}"
-DATASET="${4:-paper_default}"
+DATASET="${3:-paper_default}"
+CHECKPOINT_PATH="${4:-}"
 
 RUN_SCRIPT=/home/VIB.LOCAL/lunkyadikurniawan.sucipto/projects/3D-CNN-VswinFormer/run.py
 REPO_DIR="$(dirname "$RUN_SCRIPT")"
@@ -57,10 +57,11 @@ output_dir: $OUTPUT_DIR
 epochs: $EPOCHS
 run_script: $RUN_SCRIPT
 checkpoint_path: ${CHECKPOINT_PATH:-None}
-command: $COMMAND
+dataset: $DATASET
+command: "${COMMAND[@]}"
 
 git_branch: $(git -C "$REPO_DIR" branch --show-current)
 git_commit: $(git -C "$REPO_DIR" rev-parse HEAD)
 EOF
 
-eval "$COMMAND"
+"${COMMAND[@]}"
