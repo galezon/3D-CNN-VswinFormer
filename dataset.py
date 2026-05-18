@@ -21,12 +21,12 @@ def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25, dataset='pa
     base_metadata_path = Path(paths_datacore['base_metadata_path'])
     adni_metadata = pd.read_csv(base_metadata_path / 'raw' / 'ADNI_full_metadata.csv')
 
-    # TODO: modify to accomodate counterfactuals
     # obtain NIFTI paths
     paths = get_paths(dataset=dataset)  # should return an intertools.chain object
 
 
     # Create efficient lookup dictionary from metadata
+    # TODO: ensure that only one image per subject is allowed
     id_to_group = pd.Series(
         adni_metadata['Group'].values, 
         index=adni_metadata['Image Data ID']
@@ -37,7 +37,6 @@ def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25, dataset='pa
     cn_groups = {'CN'}
     ad_groups = {'SMC', 'AD', 'LMCI', 'MCI', 'EMCI'}
 
-    # TODO: modify to accomodate counterfactuals
     for path in paths:
         img_id = get_img_id(path, dataset) 
         group = id_to_group.get(img_id)
