@@ -8,51 +8,71 @@ from register import paths_datacore, train_ready_registered_datasets
 from pathlib import Path
 import pandas as pd
 import itertools
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold
+import warnings
 
 logger = logging.getLogger(__name__)
 
-def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25, dataset='paper_default'):
+def read_split_data(val_rate: float = 0.25, test_rate: float = 0.25, dataset='paper_default'):  # TODO: val_rate is not used! test_rate is also not used
     """
-    Just obtain the paths of the NIFTIs, separate them by AD vs CN, and split them into train and val.
-    # TODO: ENFORCE SEPARATION PER SUBJECT!
+    Obtain the paths of the NIFTIs, separate them by AD vs CN, enforce MRIs of a subject are either all in train or val.
     """
+    if val_rate != 0.25:
+        warnings.warn(
+            "val_rate and test_rate are currently not used. "
+            "Validation split is fixed by n_splits=4."
+        )
 
     base_metadata_path = Path(paths_datacore['base_metadata_path'])
     adni_metadata = pd.read_csv(base_metadata_path / 'raw' / 'ADNI_full_metadata.csv')
 
-    # obtain NIFTI paths
-    paths = get_paths(dataset=dataset)  # should return an intertools.chain object
-
-
     # Create efficient lookup dictionary from metadata
-    # TODO: ensure that only one image per subject is allowed
     id_to_group = pd.Series(
         adni_metadata['Group'].values, 
         index=adni_metadata['Image Data ID']
     ).to_dict()
+    id_to_subjectid = pd.Series(
+        adni_metadata['Subject'].values, 
+        index=adni_metadata['Image Data ID']
+    ).to_dict()
 
-    # Sort AD vs CN
-    AD_paths, CN_paths = [], []
     cn_groups = {'CN'}
     ad_groups = {'SMC', 'AD', 'LMCI', 'MCI', 'EMCI'}
 
-    for path in paths:
+    rows = []
+    for path in get_paths(dataset=dataset): # is an intertools.chain object
         img_id = get_img_id(path, dataset) 
         group = id_to_group.get(img_id)
-        
-        if group in cn_groups:
-            CN_paths.append(path)
+        subjectid = id_to_subjectid.get(img_id)
+
+        if group in cn_groups:  # 0=AD, 1=CN
+            health_state = 1
         elif group in ad_groups:
-            AD_paths.append(path)
+            health_state = 0
+        else:
+            print(f"Unknown group label for image_id={img_id} with group={group}")
+            continue
         
-    # Combine paths with labels and split
-    all_paths = CN_paths + AD_paths
-    all_labels = [1] * len(CN_paths) + [0] * len(AD_paths)  # 0=AD, 1=CN
-    
-    train_images_path, val_images_path, train_images_label, val_images_label = train_test_split(
-        all_paths, all_labels, test_size=val_rate, random_state=RANDOM_STATE, stratify=all_labels
+        row = {'path':path, 'label':health_state, 'subject':subjectid}
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+ 
+    splitter = StratifiedGroupKFold(n_splits=4, shuffle=True, random_state=RANDOM_STATE)
+    train_idx, val_idx = next(
+        splitter.split(
+            df,
+            groups=df["subject"],   # IMPORTANT
+            y=df['label']
+        )
     )
+    train_df = df.iloc[train_idx]
+    val_df = df.iloc[val_idx]
+
+    train_images_path = train_df.path.tolist()
+    train_images_label = train_df.label.tolist()
+    val_images_path = val_df.path.tolist()
+    val_images_label = val_df.label.tolist()
 
     return train_images_path, train_images_label, val_images_path, val_images_label
 

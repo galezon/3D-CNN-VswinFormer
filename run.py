@@ -33,7 +33,7 @@ def main(args):
     logger.info(f"Using {device} device")
     
     logger.info(f"Using {NO_WORKERS} dataloader workers")
-    train_loader, val_loader, train_num, val_num = get_loaders(batch_size, no_workers, dataset)  # TODO: add optional arguments
+    train_loader, val_loader, train_num, val_num = get_loaders(batch_size, no_workers, dataset)
 
     logger.info(f"Using {train_num} images for training, {val_num} images for validation")    
 
