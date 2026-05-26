@@ -3,3 +3,5 @@ __pycache__/
 checkpoints/
 test_run_logs/
 sandbox.ipynb
+slurmjobs.logs
+.gitignore
