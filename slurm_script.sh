@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=train_ADvsCN_classifier_ctf_target_age_30
+#SBATCH --job-name=smoothed_AD_vs_CN_50Y
 #SBATCH --partition=gpu_h100_64C_128T_4TB_co_pi
 #SBATCH --gres=gpu:1
 #SBATCH --mem=128G

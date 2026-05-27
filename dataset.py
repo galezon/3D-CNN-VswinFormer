@@ -92,14 +92,29 @@ def get_paths(dataset):
         adni3_paths = adni3_dir.glob("*.nii.gz")
         adni_1_2_go_paths = adni_1_2_go_dir.glob("*.nii.gz")
         
-        return itertools.chain(adni3_paths, adni_1_2_go_paths)       
+        return itertools.chain(adni3_paths, adni_1_2_go_paths)
+    elif dataset in ['smoothed_counterfactual_target_age_30', 'smoothed_counterfactual_target_age_40', 'smoothed_counterfactual_target_age_50']:
+        adni3_dir = Path(paths_datacore['ADNI3_ctf_3d_smoothed_dir']) / dataset.removeprefix("smoothed_counterfactual_")  # Path() / target_age_40
+        adni_1_2_go_dir = Path(paths_datacore['ADNI_1_2_GO_ctf_3d_smoothed_dir']) / dataset.removeprefix("smoothed_counterfactual_")  # Path() / target_age_40
+
+        adni3_paths = adni3_dir.glob("*.nii.gz")
+        adni_1_2_go_paths = adni_1_2_go_dir.glob("*.nii.gz")
+        
+        return itertools.chain(adni3_paths, adni_1_2_go_paths) 
     else:
         raise NotImplementedError
 
 def get_img_id(path, dataset):
     if dataset == 'paper_default':
         return path.stem.split("_")[0]
-    elif dataset in ['counterfactual_target_age_30', 'counterfactual_target_age_40', 'counterfactual_target_age_50']:
+    elif dataset in [
+        'counterfactual_target_age_30',
+        'counterfactual_target_age_40', 
+        'counterfactual_target_age_50', 
+        'smoothed_counterfactual_target_age_30', 
+        'smoothed_counterfactual_target_age_40',
+        'smoothed_counterfactual_target_age_50'
+        ]:
         return path.name.replace('.nii.gz', '')
     else:
         raise NotImplementedError
